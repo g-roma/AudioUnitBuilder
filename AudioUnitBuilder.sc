@@ -1,9 +1,9 @@
 AudioUnitBuilder{
 	classvar <>rez="/Developer/Tools/Rez", <>unitDict, <>displayDict;
 	var name, specs, function, plistData, type, subtype;
-	var <>doNoteOn=false,<>beatDiv=nil,<>port=9989,<>blockSize=64;
+	var <>doNoteOn=false,<>beatDiv=nil,<>port=9989,<>blockSize=64, <>memorySize = 8192, numWireBufs=64;
 	var <>componentsPath = "~/Library/Audio/Plug-Ins/Components/";
-	
+
 	var xmlHead = '<?xml version="1.0" encoding="UTF-8"?>';
 	var docType = '<!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">';
 	var gpl = "/* SuperCollider real time audio synthesis system\n"
@@ -48,8 +48,8 @@ AudioUnitBuilder{
 		\Milliseconds		-> 24,	/* parameter is expressed in milliseconds */
 		\Ratio				-> 25	/* for compression, expansion ratio, etc. */
 		];
-				
-		displayDict=IdentityDictionary[		
+
+		displayDict=IdentityDictionary[
 			\Linear -> 0,
 			\SquareRoot->1,
 			\Squared->2,
@@ -59,11 +59,11 @@ AudioUnitBuilder{
 			\Logarithmic->6
 		];
 	}
-	
+
 	*new { arg name, subtype, func, specs, type=\aumf;
 		^super.new.init(name, subtype, func, specs, type);
 	}
-	
+
 	init{ arg aName, aSubtype, aFunc, someSpecs, aType;
 		name = aName;
 		function = aFunc;
@@ -72,30 +72,34 @@ AudioUnitBuilder{
 		plistData = this.makePluginSpec(name, function,specs);
 		subtype = aSubtype;
 	}
-	
-	
+
+
 	getElement{|document, name, value|
 	    var element = document.createElement(name);
 	    element.appendChild(document.createTextNode(value));
 	    ^element;
 	}
-	
+
 	getPlistElement{|document|
 	    var element = document.createElement("plist");
 	    element.setAttribute("version","1.0");
 	    ^element;
 	}
-	
+
 	getKey{|document, name| ^this.getElement(document,"key",name);}
 	getReal{|document, value| ^this.getElement(document,"real",value);}
 	getString{|document, value|^this.getElement(document,"string",value);}
-    
+
 	makeServerConfig{
 	    var domDoc, plist, dict, plistFile;
 	    domDoc = DOMDocument.new;
 	    dict = domDoc.createElement("dict");
 	    dict.appendChild(this.getKey(domDoc,"PortNumber"));
 	    dict.appendChild(this.getReal(domDoc,port.asString));
+	    dict.appendChild(this.getKey(domDoc,"MemorySize"));
+	    dict.appendChild(this.getReal(domDoc,memorySize.asString));
+		dict.appendChild(this.getKey(domDoc,"NumWireBufs"));
+	    dict.appendChild(this.getReal(domDoc,numWireBufs.asString));
 	    dict.appendChild(this.getKey(domDoc,"BlockSize"));
 	    dict.appendChild(this.getReal(domDoc,blockSize.asString));
 	    dict.appendChild(this.getKey(domDoc,"DoNoteOn"));
@@ -103,13 +107,13 @@ AudioUnitBuilder{
 	    beatDiv.notNil.if({
 	        dict.appendChild(this.getKey(domDoc,"BeatDiv"));
     	    dict.appendChild(this.getReal(domDoc,beatDiv.asString));
-    	});    	
+    	});
     	plist = this.getPlistElement(domDoc);
     	plist.appendChild(dict);
     	domDoc.appendChild(plist);
     	^domDoc;
 	}
-	
+
 	makePluginSpec{
 	    var domDoc, plist, dict, paramArray, plistFile, source, sourceNode;
 	    domDoc = DOMDocument.new;
@@ -124,7 +128,7 @@ AudioUnitBuilder{
 	        param.appendChild(this.getString(domDoc,function.def.argNames[i].asString));
 	        param.appendChild(this.getKey(domDoc,"MinValue"));
 	        param.appendChild(this.getReal(domDoc,spec[0].asString));
-	        param.appendChild(this.getKey(domDoc,"MaxValue"));	        
+	        param.appendChild(this.getKey(domDoc,"MaxValue"));
 	        param.appendChild(this.getReal(domDoc,spec[1].asString));
 	        param.appendChild(this.getKey(domDoc,"Display"));
 	        param.appendChild(this.getReal(domDoc,displayDict[spec[2].asSymbol].asString));
@@ -134,7 +138,7 @@ AudioUnitBuilder{
 	        param.appendChild(this.getReal(domDoc,unitDict[spec[4].asSymbol].asString));
 	        paramArray.appendChild(param);
 	    });
-	    dict.appendChild(paramArray);	    
+	    dict.appendChild(paramArray);
 	    sourceNode = domDoc.createElement("string");
 	    source = "\n%\n\nvar name, func, specs;\n\nname = %;\n\n "
 	    "func = %;\n\nspecs = \n%;\n\n".format(gpl, name.quote, function.asCompileString,specs.asCompileString);
@@ -146,15 +150,15 @@ AudioUnitBuilder{
     	domDoc.appendChild(plist);
     	^domDoc;
 	}
-		
-	writePlist{|doc, fileName| 
+
+	writePlist{|doc, fileName|
 	    var plistFile = File(fileName,"w");
 	    plistFile.write(xmlHead);
 	    plistFile.write(docType);
 	    doc.write(plistFile);
 	    plistFile.close;
 	}
-	
+
 	copyPlugins{
 	    var pipe, line, synthDef, ugens, cmd;
 	    synthDef = SynthDef(name, function);
@@ -164,41 +168,47 @@ AudioUnitBuilder{
         line = pipe.getLine;
         while({line.notNil}, {
             "cp % %".format(line.findRegexp("[^ ]*.scx")[0][1],(componentsPath++name++".component/Contents/Resources/plugins/")).systemCmd;
-            line = pipe.getLine; 
+            line = pipe.getLine;
         });
         pipe.close;
 	}
-	
+
 	makePlugin{
 		var synthDef, cmd, result;
 		var dir = this.class.filenameSymbol.asString.dirname;
 		var unixDir = dir.escapeChar($ );
 		var component = "%%.component".format(componentsPath,name);
 		var resources = component++"/Contents/Resources/";
-		result = "cp -R %SuperColliderAU.component/ %/".format(componentsPath,component).systemCmd;		
+		"cp -R %SuperColliderAU.component/ %/".format(componentsPath,component).postln;
+		result = "cp -R %SuperColliderAU.component/ %/".format(componentsPath,component).systemCmd;
 		if(result!=0,{"Error copying %SuperColliderAU.component".format(componentsPath).postln});
-		"rm -r %/plugins/*.scx".format(resources).systemCmd;
+		//"rm -r %/plugins/*.scx".format(resources).systemCmd;
 		this.writePlist(this.makePluginSpec,dir++"/pluginSpec.plist");
 		this.writePlist(this.makeServerConfig,dir++"/serverConfig.plist");
 		"sed -e 's/@@NAME@@/%/' -e 's/@@COMP_TYPE@@/%/' -e 's/@@COMP_SUBTYPE@@/%/' "
-		"%/SuperColliderAU.r>%/tmp.r".format(name,type,subtype,unixDir,unixDir).systemCmd;
+		"%/Info.plist>%/tmp.plist".format(name,type,subtype,unixDir,unixDir).systemCmd;
         "mv %/serverConfig.plist %".format(unixDir,resources).systemCmd;
         "mv %/pluginSpec.plist %".format(unixDir,resources).systemCmd;
         synthDef = SynthDef(name, function);
 		"mkdir -p %/synthdefs".format(resources).systemCmd;
-		synthDef.writeDefFile(dir++"/");		
+		synthDef.writeDefFile(dir++"/");
         "mv %/%.scsyndef %/synthdefs".format(unixDir,name,resources).systemCmd;
-        result= "% -o %/SuperColliderAU.rsrc -useDF %/tmp.r".format(rez,unixDir,unixDir).systemCmd;
-		if(result!=0,{"Error running Rez ".postln},{"Created %".format(component).postln});
-		"mv %/SuperColliderAU.rsrc % %".format(unixDir,resources).systemCmd;
-		"rm %/tmp.r".format(unixDir).systemCmd;
-		this.copyPlugins;
-		
+        //result= "% -o %/SuperColliderAU.rsrc -useDF %/tmp.r".format(rez,unixDir,unixDir).systemCmd;
+		//if(result!=0,{"Error running Rez ".postln},{"Created %".format(component).postln});
+		(component++"/Contents").postln;
+
+		"cp %/tmp.plist %%/Info.plist".format(unixDir,component++"/Contents").postln;
+		result = "mv %/tmp.plist %%/Info.plist".format(unixDir,component++"/Contents").systemCmd;
+		result.postln;
+		//"rm %/tmp.r".format(unixDir).systemCmd;
+		//this.copyPlugins;
+
 	}
 
 	makeInstall{
 		var cmd = "cp -r scaudk/%.component ~/Library/Audio/Plug-Ins/Components".format(name);
 		this.makePlugin;
 		cmd.systemCmd;
+		"Done building AudioUnit";
 	}
 }

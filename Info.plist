@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>English</string>
+	<key>CFBundleExecutable</key>
+	<string>SuperColliderAU</string>
+	<key>CFBundleIconFile</key>
+	<string>scau</string>
+	<key>CFBundleIdentifier</key>
+	<string>io.github.SuperCollider</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundlePackageType</key>
+	<string>BNDL</string>
+	<key>CFBundleSignature</key>
+	<string>SCAU</string>
+	<key>CFBundleVersion</key>
+	<string>1.0</string>
+	<key>CSResourcesFileMapped</key>
+	<true/>
+	<key>AudioComponents</key>
+		<array>
+			<dict>
+				<key>description</key>
+				<string>@@NAME@@</string>
+				<key>factoryFunction</key>
+				<string>SuperColliderAUFactory</string>
+				<key>manufacturer</key>
+				<string>SCAU</string>
+				<key>name</key>
+				<string>SuperColliderAU : @@NAME@@</string>
+				<key>subtype</key>
+				<string>@@COMP_SUBTYPE@@</string>
+				<key>type</key>
+				<string>@@COMP_TYPE@@</string>
+				<key>version</key>
+				<integer>005</integer>
+			</dict>
+		</array>
+	</dict>
+</plist>
