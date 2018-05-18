@@ -206,9 +206,9 @@ AudioUnitBuilder{
 	}
 
 	makeInstall{
-		var cmd = "cp -r scaudk/%.component ~/Library/Audio/Plug-Ins/Components".format(name);
+		//var cmd = "cp -r scaudk/%.component ~/Library/Audio/Plug-Ins/Components".format(name);
 		this.makePlugin;
-		cmd.systemCmd;
+		//cmd.systemCmd;
 		"Done building AudioUnit";
 	}
 }
