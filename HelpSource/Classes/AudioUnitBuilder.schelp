@@ -1,0 +1,138 @@
+title:: AudioUnitBuilder
+summary:: makes Audio Unit plugins
+
+DESCRIPTION::
+AudioUnitBuilder is  an utility class to build custom Audio Unit plugins using SuperColliderAU.
+
+To try it, first download and compile SuperColliderAU from https://github.com/supercollider/SuperColliderAU.
+
+AudioUnitBuilder needs Rez to compile the resource used by the Component Manager API to identify the plugin.
+
+Rez is installed by the Developer Tools so you must have them installed to use this class.
+
+It is recommended that  you get familiar with the pluginSpec.plist and the serverConfig.plist files, even if this class creates them for you. They are very simple XML files.
+
+
+
+
+Example:
+
+
+
+code::
+
+(
+var name, func, specs, componentType, componentSubtype, builder;
+
+name = "fedDelay"; // name of your plugin
+
+func =  {
+
+ 	| tap1Time,  tap1Feedback,
+ 	  tap2Time,  tap2Feedback,
+ 	  tap3Time,  tap3Feedback,
+ 	  tap4Time,  tap4Feedback|
+
+	var tap1, tap2, tap3, tap4;
+	var local, in, amp, feedBackMix, tapArray;
+	var maxDelay = 3;
+
+	in = Mix.new(AudioIn.ar([1,2]));//Input from AU  host
+	local = LocalIn.ar(4);
+	feedBackMix = Mix.new(local);
+
+	tap1 = AllpassN.ar(  (feedBackMix * tap1Feedback) +in*(1-tap1Feedback), maxDelay, tap1Time,  0.2);
+	tap2 = AllpassN.ar(  (feedBackMix * tap2Feedback) +in*(1-tap2Feedback), maxDelay, tap2Time, 0.2);
+	tap3 = AllpassN.ar(  (feedBackMix * tap3Feedback) +in*(1-tap3Feedback), maxDelay, tap3Time, 0.2);
+	tap4 = AllpassN.ar(  (feedBackMix * tap4Feedback) +in*(1-tap4Feedback), maxDelay, tap4Time,  0.2);
+
+	tapArray = [ tap1, tap2, tap3, tap4 ];
+	LocalOut.ar(tapArray);
+	Out.ar(0, Mix.new(tapArray));//Output to AU host
+};
+
+
+specs =  #[
+	[0, 2 , \Linear, 0.1,\Seconds ] ,
+	[0, 0.5 , \Linear, 0.1,\LinearGain ] ,
+	[0, 2 , \Linear, 0.1,\Seconds ] ,
+	[0, 0.5 , \Linear, 0.1,\LinearGain ] ,
+	[0, 2 , \Linear, 0.1,\Seconds ] ,
+	[0, 0.5 , \Linear, 0.1,\LinearGain ] ,
+	[0, 2 , \Linear, 0.1,\Seconds ] ,
+	[0, 0.5 , \Linear, 0.1,\LinearGain ]
+];
+
+
+// this must be a four chars code. Either \aufx (effect) or \aumf (music effect).
+// music effects may receive MIDI but some applications won't recognize them
+// default is \aumf
+
+componentType = \aufx;
+
+// this must be a four chars code. It should be unique in your system within all SuperColliderAU plugins.
+
+componentSubtype = \FEDL;
+
+builder = AudioUnitBuilder.new(name, componentSubtype,func, specs, componentType);
+
+
+//build and install into ~/Library/Audio/Plug-Ins/Components
+
+builder.makeInstall;
+
+)
+::
+
+
+If all goes well your plugin should appear in any AudioUnits host. The specs array no longer creates SuperCollider Specs. Instead, it is now possible to use the mappings provided by the AudioUnits framework for parameter display. Each entry in the specs array should be an array like this: [min, max, display style, default value, unit].
+Here is the mapping for display styles:
+
+code::
+
+			\Linear -> 0,
+			\SquareRoot -> 1,
+			\Squared -> 2,
+			\Cubed -> 3,
+			\CubeRoot -> 4,
+			\Exponential -> 5,
+			\Logarithmic -> 6
+::
+
+Note that these work the other way around than Spec, eg. use \Logarithmic where you would use \exp in SuperCollier.
+
+Here is the mapping for units:
+
+code::
+
+		\Generic -> 0,	/* untyped value generally between 0.0 and 1.0 */
+		\Indexed -> 1,	/* takes an integer value (good for menu selections) */
+		\Boolean -> 2,	/* 0.0 means FALSE, non-zero means TRUE */
+		\Percent -> 3,	/* usually from 0 -> 100, sometimes -50 -> +50 */
+		\Seconds -> 4,	/* absolute or relative time */
+		\SampleFrames -> 5,	/* one sample frame equals (1.0/sampleRate) seconds */
+		\Phase -> 6,	/* -180 to 180 degrees */
+		\Rate -> 7,	/* rate multiplier, for playback speed, etc. (e.g. 2.0 ->-> twice as fast) */
+		\Hertz -> 8,	/* absolute frequency/pitch in cycles/second */
+		\Cents -> 9,	/* unit of relative pitch */
+		\RelativeSemiTones -> 10,	/* useful for coarse detuning */
+		\MIDINoteNumber -> 11,	/* absolute pitch as defined in the MIDI spec (exact freq may depend on tuning table) */
+		\MIDIController -> 12,	/* a generic MIDI controller value from 0 -> 127 */
+		\Decibels -> 13,	/* logarithmic relative gain */
+		\LinearGain -> 14,	/* linear relative gain */
+		\Degrees -> 15,	/* -180 to 180 degrees, similar to phase but more general (good for 3D coord system) */
+		\EqualPowerCrossfade -> 16,	/* 0 -> 100, crossfade mix two sources according to sqrt(x) and sqrt(1.0 - x) */
+		\MixerFaderCurve1 -> 17,	/* 0.0 -> 1.0, pow(x, 3.0) -> linear gain to simulate a reasonable mixer channel fader response */
+		\Pan -> 18,	/* standard left to right mixer pan */
+		\Meters -> 19,	/* distance measured in meters */
+		\AbsoluteCents -> 20,	/* absolute frequency measurement : if f is freq in hertz then absoluteCents = 1200 * log2(f / 440) + 6900*/
+		\Octaves	-> 21,	/* octaves in relative pitch where a value of 1 is equal to 1200 cents*/
+		\BPM -> 22,	/* beats per minute, ie tempo */
+		\Beats -> 23,	/* time relative to tempo, ie. 1.0 at 120 BPM would equal 1/2 a second */
+		\Milliseconds -> 24,	/* parameter is expressed in milliseconds */
+		\Ratio -> 25	/* for compression, expansion ratio, etc. */
+
+::
+
+
+No check is done that you provide suitable numerical values. Use at your own risk.
